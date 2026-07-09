@@ -2,39 +2,41 @@
 
 A binary classifier that labels real satellite telemetry fragments as anomalous or nominal, built on the OPSSAT-AD dataset — actual on-orbit telemetry from ESA's OPS-SAT CubeSat. The dataset contains 2,123 labeled single-channel telemetry fragments across 9 channels, roughly 20% of them anomalous. The end goal is a complete, honest ML workflow on real flight data (load → clean → explore → split → train → evaluate), with evaluation done correctly under class imbalance — a model that always predicts "normal" scores ~80% accuracy here while detecting nothing, so accuracy alone is never the metric.
 
-## Current Version (V1 — in progress)
+## Current Version (V2)
 
-V1 is the data foundation: get the raw Zenodo archive loaded into a structured DataFrame and verified clean. No plots, no features, no models yet — the "it works" signal for this version is that the loader's sanity checks pass against the dataset's published facts (2,123 fragments, 9 channels, ~20% anomaly rate).
+V2 is the reasoning version: exploratory data analysis on the raw fragments before any features or models exist. The question this version answers is "what does an anomaly actually look like, per channel?" because the channels are different telemetry streams I don't expect anomalies to look the same across them.
 
-The raw archive (`data/raw/dataset.csv`, `data/raw/segments.csv`) is downloaded and confirmed to match its own on-disk layout (documented in `docs/algorithm.md`). Nothing is implemented yet — `src/load.py`, `src/clean.py`, and `main.py` are stubs to be built out next.
-
-### Planned Features (V1)
-- `load_fragments()` merges `dataset.csv` and `segments.csv` into a single `fragments_df` — one row per telemetry fragment, with fragment ID, channel, raw value array, timestamps, and anomaly label
-- Load-time assertions verify 2,123 fragments, 9 channels, and a ~20% positive (anomalous) rate before anything downstream runs
-- `clean_fragments()` audits the loaded data: duplicate fragment IDs, NaN/non-numeric values inside fragments, empty fragments — and logs every decision made
+### Features
+- Verified data loading with fact assertions (2,123 fragments / 9 channels / ~20% anomalous) — V1
+- Cleaning with logged decisions on NaNs, duplicates, non-numeric values, empty fragments — V1
+- `run_eda()` pass 1, producing saved figures:
+  - Per-channel fragment counts and anomaly rates (this figure shows where the anomalies live)
+  - Side-by-side anomalous-vs-nominal fragment line plots for each of the 9 channels, so an anomalous fragment can be visually compared against a nominal one(from the same channel)
+- All figures saved to `figures/` with descriptive filenames
 
 ## Technologies
 - Python 3
-- pandas (fragment table)
-- NumPy (per-fragment value arrays)
+- pandas, NumPy
+- Matplotlib (EDA figures)
 
 ## Project Structure
 ```
 OPSSAT-AD/
 ├── data/
 │   └── raw/            # dataset.csv, segments.csv (Zenodo record 12588359, not committed)
+├── figures/            # saved EDA output
 ├── src/
 │   ├── load.py         # load_fragments
-│   └── clean.py        # clean_fragments
-├── main.py             # runs load → clean, prints sanity-check summary
+│   ├── clean.py        # clean_fragments
+│   └── eda.py          # run_eda (pass 1: raw fragments)
+├── main.py             # load → clean → EDA pass 1
 ├── docs/
 │   └── algorithm.md
 └── README.md
 ```
 
 ## Long-Term Goals
-- V2: Exploratory data analysis on raw fragments — per-channel counts, anomaly rates, and what an anomalous fragment actually looks like next to a nominal one
-- V3: Feature extraction (fixed-width summary statistics per fragment) and a stratified train/test split
+- V3: Feature extraction (summary statistics per fragment), EDA pass 2 on those features, and a stratified train/test split
 - V4: First evaluated model — a constrained Decision Tree, scored on precision/recall/F1
 - V5: Logistic Regression added, both models compared, error modes interpreted
 - V6: Final documentation pass and public GitHub release
