@@ -1,19 +1,27 @@
-# Satellite Telemetry Anomaly Detection V2 Algorithm
+# Satellite Telemetry Anomaly Detection V3 Algorithm
 
 ## Goal
-Build visuals for the raw data before modeling. V2 answers three questions with saved figures: How are fragments distributed across the 9 channels? How does the anomaly rate vary by channel? and What does an anomalous fragment look like next to a nominal one from the same channel?
+Convert variable-length fragments into a fixed-width feature matrix, verify the features carry label signal, and freeze a stratified train/test split. The feature set is deliberately simple summary statistics (info from the V2 plots of what anomalies look like per channel) because the project's point is honest workflow and imbalance-aware evaluation.
 
 ## Inputs
 Unchanged from V1.
 
 ## Outputs
-- Everything from V1 (verified, cleaned `fragments_df`; cleaning audit log)
-- New: saved EDA figures in `figures/` —
-  - `channel_counts_anomaly_rates.png`: bar chart of fragment counts per channel, annotated with per-channel anomaly rate
-  - `fragments_ch{N}_anomalous_vs_nominal.png` (one per channel): line plots of anomalous fragments overlaid or side-by-side with nominal fragments from the same channel
+- Everything from V2 (cleaned `fragments_df`; pass-1 EDA figures)
+- New: `features_df` (fixed-width feature matrix)
+- New: pass-2 EDA figures — per-feature distribution plots (histograms or box plots) split by label
+- New: `X_train, X_test, y_train, y_test` arrays with printed class-balance verification for both splits
 
 ## Data Structure
-Unchanged from V1
+- `fragments_df` — Unchanged from V1.
+- **New: `features_df`** — fixed-width feature matrix for modeling, 2,123 rows, ~12–15 feature columns:
+  - `fragment_id` (join key back to fragments)
+  - `mean`, `std`, `min`, `max`, `range` : value-level summary stats
+  - `n_samples` : fragment length
+  - `n_unique`, `duplicate_ratio` : value-uniqueness stats (flatlined/stuck channels show up here)
+  - `diff_mean_abs`, `diff_std` : first-difference statistics (spikes and noise-character changes show up here)
+  - `channel` : encoded categorical
+  - `label` : target
 
 ## Core Functions
 
@@ -21,16 +29,24 @@ Unchanged from V1
 
 2. **`clean_fragments(fragments_df) -> fragments_df`** — Unchanged from V1.
 
-3. **`run_eda(fragments_df) -> saved figures` (pass 1)**
+3. **`extract_features(fragments_df) -> features_df`**
    - *Input:* cleaned `fragments_df`.
-   - *Output:* figures saved to `figures/` (listed under Outputs).
-   - *Process:* 
-      (a) Group by channel; plot fragment counts and anomaly rates per channel. 
-      (b) For each channel, sample a handful of anomalous and nominal fragments and plot their raw value series against their timestamps(with labels). Keep the same axis scales within a channel so differences are not artifacts of scaling. Note observations inline (as figure captions or a short markdown notes file): Do anomalies look like spikes, level shifts, flatlines, or noise-character changes, and does this differ by channel?
-   - *Purpose:* Ground the V3 feature choices in what the anomalies actually look like, rather than picking summary statistics blind. Also establishes whether class imbalance is uniform across channels, which matters for interpreting per-channel performance later.
+   - *Output:* `features_df` as described under Data Structure.
+   - *Process:* For each fragment, compute the summary statistics from its NumPy value array (level stats, length, uniqueness stats, first-difference stats via `np.diff`). Encode `channel` as a categorical. Assert no NaNs in the output and row count still 2,123.
+   - *Purpose:* Fixed-width representation so standard sklearn classifiers apply. Each feature maps to an anomaly mode seen in V2 (level shift → mean/range; flatline → duplicate_ratio/n_unique; spike/noise change → diff stats).
+
+4. **`run_eda(fragments_df, features_df) -> saved figures` (extended: pass 2)**
+   - Pass 1 (raw fragments) — Unchanged from V2.
+   - *New pass 2 — Input:* `features_df`. *Output:* per-feature distribution figures split by label, saved to `figures/`. *Process:* for each feature column, plot the anomalous vs. nominal distributions on shared axes. *Purpose:* confirm before modeling that at least some features visibly separate the classes : if none do, that's a finding to address now, not future versions
+
+5. **`split_data(features_df) -> X_train, X_test, y_train, y_test`**
+   - *Input:* `features_df`.
+   - *Output:* train/test feature matrices and label vectors.
+   - *Process:* `train_test_split` with `stratify=y`, `test_size≈0.2`, fixed `random_state`. Then verify: print class balance of both splits and assert both are within a small tolerance of the overall ~20% positive rate.
+   - *Purpose:* Under 80/20 imbalance, an unlucky unstratified split could leave the test set with too few anomalies to measure recall meaningfully. Stratification plus a fixed seed makes every later result reproducible and comparable across V4/V5.
 
 ## Execution Flow
-1. `load_fragments` → 2. `clean_fragments` → 3. `run_eda` (pass 1, on raw fragments).
+1. `load_fragments` → 2. `clean_fragments` → 3. `run_eda` (pass 1, raw fragments) → 4. `extract_features` → 5. `run_eda` (pass 2, features) → 6. `split_data`.
 
 ## Design Rule
-EDA is for visualization, not modeling. V2 produces exactly the two figure families above, no clustering, no statistical tests, etc... The version is successful when the figures exist and can answer, per channel, "what does an anomaly look like here?" If a figure doesn't help answer that, it doesn't get made.
+Fixed-width summary statistics. The feature list is the ~12–15 columns above, each justified by a V2 observation; anything without that justification stays out. If this version's own pass-2 EDA (Core Function 4) finds a feature that doesn't separate the classes, expansion is allowed.

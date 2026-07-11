@@ -1,9 +1,9 @@
 """Save figures to the `figures` directory. One chart with per-channel fragment counts and anomaly rates. Nine charts with anomalous fragments plotted alongside nominal ones from the same channel(raw value vs. timestamp, same axis scale within each channel)"""
 import pandas as pd
-
+import numpy as np
 import matplotlib.pyplot as plt
 
-def run_eda(fragments_df):
+def run_eda(fragments_df, features_df):
     groups = fragments_df.groupby('channel')
     count = groups.size()
     anomaly_rate = groups['label'].mean()
@@ -44,3 +44,26 @@ def run_eda(fragments_df):
         plt.legend()
         plt.savefig(f'figures/fragments_{group_name}_anomalous_vs_nominal.png')
         plt.close()
+
+    feature_columns = [col for col in features_df.columns if col != 'fragment_id' and col != 'label' and col != 'channel']  # your list of 10 column names to plot
+
+    for feature in feature_columns:
+        anomalous = features_df[features_df['label'] == 1]
+        nominal = features_df[features_df['label'] == 0]
+
+        plt.figure(figsize=(10, 5))
+
+        feature_min = np.min(features_df[feature])
+        feature_max = np.max(features_df[feature])
+        bins = np.linspace(feature_min, feature_max, 30)
+
+        plt.hist(anomalous[feature], alpha=0.5, label='Anomalous', color='red', density=True, bins=bins)
+        plt.hist(nominal[feature], alpha=0.5, label='Nominal', color='blue', density=True, bins=bins)
+
+        plt.title(f'{feature} Distribution: Anomalous vs Nominal')
+        plt.xlabel(feature)
+        plt.ylabel('Density')
+        plt.legend()
+        plt.savefig(f'figures/feature_{feature}_anomalous_vs_nominal.png')
+        plt.close()
+

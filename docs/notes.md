@@ -20,3 +20,63 @@ This suggests V3 features sensitive to *local* discontinuity (e.g. large sample-
 ## Anomaly rate is not uniform across channels
 
 Per `channel_counts_anomaly_rates.png`: rates range from 0.00% (CADC0884) to 78.57% (CADC0890), with most channels landing in the 15-35% range. CADC0886 and CADC0890 have very few total fragments (11 and 14 respectively), so their extreme rates should be read with that small-sample caveat in mind; a couple of mislabeled or unusual fragments would swing the percentage a lot more there than on a channel with a large number of fragments.
+
+---
+
+# V3 EDA Observations (pass 2 — features)
+
+Notes on the 10 `feature_{name}_anomalous_vs_nominal.png` histograms (`features_df`, split by label,
+density-normalized with shared bin edges across both classes).
+
+## Strongest separators
+
+- **`diff_mean_abs`**: the clearest split of any feature. Nominal fragments are heavily concentrated
+  right at 0 (small sample-to-sample changes throughout); anomalous fragments have a visibly longer
+  tail into higher values. This is a direct, quantitative confirmation of the V2 finding above — the
+  "sharp interruption cut into a smooth curve" pattern shows up numerically as larger first-differences,
+  exactly as predicted before any feature was computed.
+- **`n_samples` / `n_unique`**: unexpected, not predicted from the V2 plots. Nominal fragments are
+  heavily concentrated at short lengths (mostly under 100 samples); anomalous fragments are far more
+  spread out, extending past 400-600 samples with a secondary cluster around 150-250. Fragment length
+  itself correlates with anomaly status — worth keeping in mind for V4, since a model could partly be
+  learning "is this fragment unusually long" rather than anything about the shape of the signal.
+
+## Moderate / weak separators
+
+- **`diff_std`**: some separation (anomalous has a taller first bin, i.e. more density at very small
+  variability), but less dramatic than `diff_mean_abs`.
+- **`max`, `range`**: mostly overlapping, with nominal showing a slightly fuller tail at higher values.
+  Moderate at best.
+- **`std`, `min`, `duplicate_ratio`**: heavy overlap between classes across their full range. These look
+  like the weakest of the 10 — plausible they contribute little on their own once a model is trained,
+  though a tree-based model could still find them useful in combination with other features.
+
+## Known confound: `mean` (and any raw-scale feature) mixes channels with very different physical scales
+
+`mean`'s histogram shows a real shape difference between classes, but it's pooling all 9 channels
+together in one chart, and channels differ by orders of magnitude in raw scale (e.g. CADC0872 values
+sit around 1e-5, while CADC0886/CADC0890 range roughly 0-1, per the V2 fragment plots). A single
+cross-channel histogram can't distinguish "this differs because of anomaly status" from "this differs
+because of which channel it came from." Not a bug in `extract_features` or `run_eda` — the spec only
+calls for one overlaid histogram per feature, not a per-channel breakdown — but a real limitation to
+remember when interpreting `mean` (and to a lesser extent `min`/`max`/`range`, which share the same
+scale issue).
+
+## A methodology note for future EDA: mismatched histogram bins can fake a signal
+
+Early versions of these plots used independent, unspecified bin edges for the anomalous and nominal
+`plt.hist()` calls. Since Matplotlib auto-computes bins per call based on that call's own data range,
+and the two classes have different spreads, this produced histograms that looked like they had a
+"big gap that closes further out" — which turned out to be largely a binning artifact, not real signal.
+Fixed by computing one shared `bins` array (via `np.linspace` over the full column's min/max) and passing
+the same `bins=` to both `plt.hist()` calls. Worth remembering for any future overlaid-histogram
+comparison: mismatched bins between two overlaid histograms are not a valid apples-to-apples comparison.
+
+## Net takeaway
+
+Pass-2 EDA confirms the spec's core question: yes, several features visibly separate the classes
+(`diff_mean_abs` clearly, `n_samples`/`n_unique` clearly if unexpectedly, `diff_std` moderately), while
+several others carry weak or ambiguous signal alone (`std`, `min`, `duplicate_ratio`). Reasonable to
+proceed to `split_data` and V4 modeling on this feature set as-is, per the V3 Design Rule — no feature
+list changes are justified by anything found here, since every original feature was already tied to a
+V2 observation and none turned out to be *completely* uninformative.
