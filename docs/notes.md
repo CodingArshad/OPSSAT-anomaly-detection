@@ -80,3 +80,56 @@ several others carry weak or ambiguous signal alone (`std`, `min`, `duplicate_ra
 proceed to `split_data` and V4 modeling on this feature set as-is, per the V3 Design Rule — no feature
 list changes are justified by anything found here, since every original feature was already tied to a
 V2 observation and none turned out to be *completely* uninformative.
+
+---
+
+# V4 Observations (Decision Tree)
+
+## Cross-validation depth selection
+
+5-fold stratified CV on the training set only, comparing mean F1 across `max_depth ∈ {3,4,5,6}`:
+
+| max_depth | mean CV F1 |
+|-----------|------------|
+| 3         | 0.685      |
+| 4         | 0.771      |
+| 5         | 0.804      |
+| 6         | 0.799      |
+
+Depth 5 won. The shape is exactly what the Design Rule predicts: performance climbs as the tree
+gets more expressive, peaks at 5, then very slightly dips at 6 — a hint of overfitting starting to
+creep in once the tree is deep enough that 1,698 training rows stop fully supporting it.
+
+## Test-set performance (evaluated once, per the frozen-split rule)
+
+Anomalous class (positive): precision 0.77, recall 0.66, F1 0.71. Confusion matrix: 321 true
+nominal, 17 false alarms, 30 missed anomalies, 57 correctly caught anomalies. Accuracy 88.94% vs.
+a 79.53% always-predict-nominal baseline (footnote only, per the Design Rule — the real story is
+that roughly 1 in 3 real anomalies (30 of 87) still slip through as false negatives).
+
+## Feature importance diverges sharply from the V3 univariate ranking
+
+The tree's `.feature_importances_` ranks `std` (0.39), `duplicate_ratio` (0.26), and `diff_std`
+(0.18) as by far the most-relied-on features — together over 83% of total importance. `n_unique`
+contributes a modest 0.07; everything else, including `diff_mean_abs`, `mean`, `channel`,
+`n_samples`, `min`, `max`, `range`, is marginal or effectively unused.
+
+This is a real surprise relative to V3's pass-2 EDA, which flagged `diff_mean_abs` as the single
+clearest univariate separator, and `std`/`duplicate_ratio` as weak, heavily-overlapping features.
+The likely explanation: pass-2 EDA measures each feature's separating power *in isolation*, while
+`.feature_importances_` measures how much a feature adds *given the other features the tree has
+already used*. Several of the diff-based and level-based features are probably correlated with each
+other (a fragment with one large jump likely scores high on both `diff_mean_abs` and `diff_std`, for
+instance), so once the tree splits on one of a correlated group, the others contribute little
+*additional* separating power even if they'd have looked informative on their own. Univariate EDA
+and a trained multivariate model's actual reliance on features are answering genuinely different
+questions, and this result is a concrete example of them disagreeing.
+
+## Reference-repo sanity check (30-min timebox)
+
+The kplabs-pl/OPS-SAT-AD paper's own 30-algorithm benchmark reports a best F1 of 0.929 (fully-connected
+neural network, precision 0.963/recall 0.929) — well above this tree's 0.71 — but the protocols aren't
+very comparable (a 30-algorithm sweep including deep learning approaches, vs. one depth-constrained,
+interpretable tree on 10 hand-built summary-statistic features, likely with different
+train/test methodology), so the gap is expected and not itself a sign of a pipeline bug; reconciling it
+further is out of scope per the Design Rule.
