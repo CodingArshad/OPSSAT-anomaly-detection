@@ -1,53 +1,54 @@
 # Satellite Telemetry Anomaly Detection (OPSSAT-AD)
 
-A binary classifier that labels real satellite telemetry fragments as anomalous or nominal, built on the OPSSAT-AD dataset (actual on-orbit telemetry from ESA's OPS-SAT CubeSat). The dataset contains 2,123 labeled single-channel telemetry fragments across 9 channels, roughly 20% of them anomalous. The end goal is a complete, honest ML workflow on real flight data (load → clean → explore → split → train → evaluate), with evaluation done correctly under class imbalance — a model that always predicts "normal" scores ~80% accuracy here while detecting nothing, so accuracy alone is never the metric.
+A binary classifier that labels real satellite telemetry fragments as anomalous or nominal, built on the OPSSAT-AD dataset (actual on-orbit telemetry from ESA's OPS-SAT CubeSat). The dataset contains 2,123 labeled single-channel telemetry fragments across 9 channels, roughly 20% of them anomalous. The end goal is a complete, honest ML workflow on real flight data (load → clean → explore → split → train → evaluate), with evaluation done correctly under class imbalance (a model that always predicts "normal" scores ~80% accuracy here while detecting nothing, so accuracy alone is never the metric).
 
-## Current Version (V4)
+## Current Version (V5)
 
-V4 delivers the first complete, evaluated model: a depth-constrained Decision Tree trained on the V3 feature matrix and scored the right way for an imbalanced problem (precision, recall, and F1 for the anomalous class, with a confusion matrix.)
+V5 completes the modeling work: Logistic Regression (with `class_weight="balanced"` on standardized features) joins the Decision Tree, and the evaluation becomes a genuine two-model comparison plus a written interpretation of which error mode dominates for each model (missed anomalies vs. false alarms) and why that distinction matters for a satellite. V5 also adds a misclassification autopsy: the test-set errors (false negatives especially) are joined back to the raw fragments and looked at directly, channel by channel, rather than left as numbers in a confusion matrix. Two models is the ceiling by design; the autopsy doesn't add a third model, it just makes sure the two models' failures are actually understood.
 
 ### Features
-- Verified data loading with assertions (2,123 fragments / 9 channels / ~20% anomalous) — V1
+- Verified data loading with published-fact assertions (2,123 fragments / 9 channels / ~20% anomalous) — V1
 - Cleaning audit with logged decisions — V1
 - Raw-fragment EDA: per-channel counts/anomaly rates, anomalous-vs-nominal fragment plots — V2
-- Fixed-width feature extraction (~12–15 summary-statistic features per fragment) and feature-distribution-by-label EDA — V3
+- Fixed-width feature extraction and feature distribution by label EDA — V3
 - Stratified 80/20 train/test split, fixed seed, class balance verified — V3
-- `train_models()`: DecisionTreeClassifier with `max_depth` selected via 5-fold cross-validation on the training set only (over `max_depth ∈ {3,4,5,6}`), refit on the full training set with the winning depth; fitted model persisted to `results/models/` via joblib
-- `evaluate_models()`: precision/recall/F1 via `classification_report` with the anomalous class as positive; confusion matrix plot; accuracy reported only as a footnote against the ~80% always-normal baseline; results sanity-checked (timeboxed to 30 min) against the reference repo's published baselines for plausibility
-- Feature importance: ranked bar chart of the Decision Tree's `.feature_importances_`, with a written interpretation of which summary statistics the model actually relies on
-- Experiment tracking: `results/metrics_summary.csv` (one row per run — model, hyperparameters, timestamp, precision/recall/F1) plus a JSON experiment log recording the full run configuration
+- Decision Tree baseline (constrained `max_depth` 3–6), fully evaluated — V4
+- `train_models()` now also trains LogisticRegression with `class_weight="balanced"` on standardized feature; the fitted Pipeline (scaler + model) is persisted via joblib, same mechanism as the Decision Tree in V4
+- `evaluate_models()` extended to a side-by-side comparison: per-model precision/recall/F1 (anomalous class positive), paired confusion matrices, accuracy footnotes vs. the ~80% baseline, sanity check against reference-repo baselines
+- Written error-mode interpretation: which model misses more anomalies vs. raises more false alarms, and what each failure mode costs in an operations context (a missed anomaly is a potentially unflagged spacecraft fault; a false alarm is wasted operator attention)
+- **New: paired Precision-Recall curves** for both models (`figures/pr_curves.png`) with average precision reported alongside a second, imbalance-native view of the same trade-off the confusion matrices show
+- Experiment tracking extended: both models' runs appended to `results/metrics_summary.csv` and logged to `results/experiment_log/`
+- **New: misclassification autopsy** : test-set predictions (both models) are joined back to `fragments_df` by `fragment_id`; false negatives and false positives are identified per channel; per-channel plots reuse the V2 `run_eda` plotting code to show missed-vs-caught anomalous fragments side by side; a written characterization documents what kind of anomalies the summary-statistic feature set fails to capture 
 
 ## Technologies
 - Python 3
 - pandas, NumPy
-- Matplotlib (EDA figures, confusion matrix plots, feature importance chart)
-- scikit-learn (`train_test_split`, `DecisionTreeClassifier`, `StratifiedKFold`/`cross_val_score`, `classification_report`)
-- joblib (model persistence)
+- Matplotlib (EDA figures, confusion matrix plots, missed-vs-caught fragment plots)
+- scikit-learn (`train_test_split`, `DecisionTreeClassifier`, `LogisticRegression`, `StandardScaler`, `classification_report`)
 
 ## Project Structure
 ```
 OPSSAT-AD/
 ├── data/
 │   └── raw/            # dataset.csv, segments.csv (Zenodo record 12588359, not committed)
-├── figures/            # EDA figures + confusion matrix + feature importance plots
+├── figures/            # EDA figures + paired confusion matrices + PR curves + missed-vs-caught autopsy plots
 ├── results/
-│   ├── models/          # persisted joblib models
-│   ├── experiment_log/  # JSON per-run configs
+│   ├── models/          # persisted joblib models (both)
+│   ├── experiment_log/  # JSON per-run configs (both models)
 │   └── metrics_summary.csv
 ├── src/
 │   ├── load.py         # load_fragments
 │   ├── clean.py        # clean_fragments
-│   ├── eda.py          # run_eda (pass 1 + pass 2)
+│   ├── eda.py          # run_eda (pass 1 + pass 2; reused by the autopsy plots)
 │   ├── features.py     # extract_features
 │   ├── split.py        # split_data
-│   ├── models.py       # train_models (Decision Tree, CV-selected max_depth, joblib persistence)
-│   └── evaluate.py     # evaluate_models (metrics, feature importance, experiment log)
-├── main.py             # full pipeline: load → … → train → evaluate
+│   ├── models.py       # train_models (Decision Tree + Logistic Regression, both persisted)
+│   └── evaluate.py     # evaluate_models (two-model comparison + PR curves + misclassification autopsy)
+├── main.py             # full pipeline, both models, autopsy
 ├── docs/
 │   └── algorithm.md
 └── README.md
 ```
 
 ## Long-Term Goals
-- V5: Logistic Regression as a second (and final) model family, side-by-side comparison, and a written interpretation of which error mode dominates (missed anomalies vs. false alarms) and why that matters operationally
-- V6: Final documentation pass and public GitHub release
+- V6: Final documentation and release pass: portfolio-facing README connecting results to their intended audience, repository cleanup, public GitHub push. No new functionality: the modeling scope, comparison, and autopsy all closed with this version.

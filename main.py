@@ -16,7 +16,7 @@ X_train, X_test, y_train, y_test = split_data(features_df)
 
 models = train_models(X_train, y_train)
 run_eda(clean_df, features_df)
-evaluate_models(models, X_test, y_test)
+evaluate_models(models, X_test, y_test, clean_df)
 
 print(features_df.head())
 print(f'Final dataset has {len(clean_df)} fragments with {clean_df["channel"].nunique()} channels and an anomaly rate of {clean_df["label"].mean():.2%}')

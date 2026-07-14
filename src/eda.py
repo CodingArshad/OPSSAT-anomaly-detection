@@ -21,29 +21,8 @@ def run_eda(fragments_df, features_df):
     for group_name, channel_df in groups:
         anomalous = channel_df[channel_df['label'] == 1]
         nominal = channel_df[channel_df['label'] == 0]
+        plot_fragment_comparison(anomalous, nominal, 'Anomalous', 'Nominal', group_name, f'figures/fragments_{group_name}_anomalous_vs_nominal.png')
 
-        anomalous_sample = anomalous.sample(n=min(5, len(anomalous)), random_state=1)
-        nominal_sample = nominal.sample(n=min(5, len(nominal)), random_state=1)
-
-        plt.figure(figsize=(10, 5))
-
-        for i, (idx, row) in enumerate(anomalous_sample.iterrows()):
-            timestamps = pd.to_datetime(row['timestamps'])   # parse strings into real datetimes
-            elapsed_seconds = (timestamps - timestamps[0]).total_seconds()
-
-            plt.plot(elapsed_seconds, row['values'], label='Anomalous' if i == 0 else None, color='red')
-
-        for i, (idx, row) in enumerate(nominal_sample.iterrows()):
-            timestamps = pd.to_datetime(row['timestamps'])
-            elapsed_seconds = (timestamps - timestamps[0]).total_seconds()
-            plt.plot(elapsed_seconds, row['values'], label='Nominal' if i == 0 else None, color='blue')
-
-        plt.title(f'Anomalous vs Nominal Fragments on Channel {group_name}')
-        plt.xlabel('Elapsed Time (s)')
-        plt.ylabel('Value')
-        plt.legend()
-        plt.savefig(f'figures/fragments_{group_name}_anomalous_vs_nominal.png')
-        plt.close()
 
     feature_columns = [col for col in features_df.columns if col != 'fragment_id' and col != 'label' and col != 'channel']  # your list of 10 column names to plot
 
@@ -67,3 +46,25 @@ def run_eda(fragments_df, features_df):
         plt.savefig(f'figures/feature_{feature}_anomalous_vs_nominal.png')
         plt.close()
 
+def plot_fragment_comparison(group_a_df, group_b_df, label_a, label_b, channel_name, filename):
+    sample_a = group_a_df.sample(n=min(5, len(group_a_df)), random_state=1)
+    sample_b = group_b_df.sample(n=min(5, len(group_b_df)), random_state=1)
+
+    plt.figure(figsize=(10, 5))
+
+    for i, (idx, row) in enumerate(sample_a.iterrows()):
+        timestamps = pd.to_datetime(row['timestamps'])
+        elapsed_seconds = (timestamps - timestamps[0]).total_seconds()
+        plt.plot(elapsed_seconds, row['values'], label=label_a if i == 0 else None, color='red')
+
+    for i, (idx, row) in enumerate(sample_b.iterrows()):
+        timestamps = pd.to_datetime(row['timestamps'])
+        elapsed_seconds = (timestamps - timestamps[0]).total_seconds()
+        plt.plot(elapsed_seconds, row['values'], label=label_b if i == 0 else None, color='blue')
+
+    plt.title(f'{label_a} vs {label_b} Fragments on Channel {channel_name}')
+    plt.xlabel('Elapsed Time (s)')
+    plt.ylabel('Value')
+    plt.legend()
+    plt.savefig(filename)
+    plt.close()

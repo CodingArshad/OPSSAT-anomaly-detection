@@ -1,7 +1,11 @@
+import pandas as pd
 import os
 import joblib
+from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.model_selection import cross_val_score, StratifiedKFold
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
 
 def train_models(X_train, y_train):
     depths = [3, 4, 5, 6]
@@ -24,4 +28,13 @@ def train_models(X_train, y_train):
     refitted = DecisionTreeClassifier(max_depth=best_depth, random_state=1).fit(X_train, y_train)
     os.makedirs('results/models/', exist_ok=True)
     joblib.dump(refitted, 'results/models/decision_tree.joblib')
-    return {'decision_tree': refitted}
+
+    X_train_encoded = pd.get_dummies(X_train, columns=['channel'])
+    log_reg = Pipeline([
+        ('scaler', StandardScaler()),
+        ('classifier', LogisticRegression(class_weight='balanced', max_iter=1000, random_state=1))
+    ])
+    log_reg.fit(X_train_encoded, y_train)
+    joblib.dump(log_reg, 'results/models/logistic_regression.joblib')
+
+    return {'decision_tree': refitted, 'logistic_regression': log_reg}
