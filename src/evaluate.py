@@ -9,14 +9,14 @@ from src.eda import plot_fragment_comparison
 
 def evaluate_models(models, X_test, y_test, fragments_df):
     comparison = {}
-    # Both models' PR curves go on this one figure
+
+    # Both models' PR curves go on this figure
     pr_fig = plt.figure(figsize=(8,6))
 
     for model_name, model in models.items():
         if model_name == 'logistic_regression':
             # Match the one-hot encoding used in training
             X_test_model = pd.get_dummies(X_test, columns=['channel'])
-            # Test set might be missing a channel value
             X_test_model = X_test_model.reindex(columns=model.feature_names_in_, fill_value=0)
         else:
             X_test_model = X_test
@@ -28,6 +28,7 @@ def evaluate_models(models, X_test, y_test, fragments_df):
 
         # False negatives
         missed = test_fragments[(y_test.values == 1) & (y_pred == 0)]
+
         # True positives
         caught = test_fragments[(y_test.values == 1) & (y_pred == 1)]
         print(f'{model_name}: {len(missed)} missed anomalies, {len(caught)} correctly caught')
@@ -36,15 +37,14 @@ def evaluate_models(models, X_test, y_test, fragments_df):
         for channel_name, channel_missed in missed.groupby('channel'):
             channel_caught = caught[caught['channel'] == channel_name]
             if len(channel_caught) == 0:
-                # Nothing to compare against for this channel
                 continue
 
             plot_fragment_comparison(
                 channel_missed, channel_caught, 'Missed', 'Caught', channel_name,
                 f'figures/autopsy_{model_name}_{channel_name}_missed_vs_caught.png'
-    )
+                )
 
-        # Anomalous class is what matters, not raw accuracy
+        # Anomalous class is what matters, not just accuracy
         report = classification_report(y_test, y_pred)
         print(f'------------------- {model_name} -------------------')
         print(report)
@@ -57,8 +57,10 @@ def evaluate_models(models, X_test, y_test, fragments_df):
         plt.close()
 
         accuracy = accuracy_score(y_test, y_pred)
+
         # What you'd get just guessing nominal every time
         baseline_accuracy = y_test.value_counts().max() / len(y_test)
+
         print(f'(footnote) {model_name} accuracy: {accuracy:.2%} vs. always-predicted-baseline accuracy: {baseline_accuracy:.2%}')
 
         # Only the tree exposes feature_importances_
@@ -121,7 +123,8 @@ def evaluate_models(models, X_test, y_test, fragments_df):
             plt.tight_layout()
             plt.savefig(f'figures/feature_importance_{model_name}.png')
             plt.close()
-            # Just want to see the top 3 at a glance
+
+            # Just the top 3
             print(importance_series.head(3))
 
         comparison[model_name] = {
@@ -130,7 +133,6 @@ def evaluate_models(models, X_test, y_test, fragments_df):
             'f1' : report_dict['1']['f1-score']
         }
 
-    # Wrapping up the shared PR curve figure now
     plt.xlabel('Recall')
     plt.ylabel('Precision')
     plt.title('Precision-Recall Curves')

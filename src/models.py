@@ -9,14 +9,13 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 
 def train_models(X_train, y_train):
-    # Keeping this small on purpose, not an open search
     depths = [3, 4, 5, 6]
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=1)
 
     best_depth = None
     best_score = -1
 
-    # 5-fold CV on training data only, test set stays untouched
+    # 5-fold CV on training data only (test set is untouched)
     for depth in depths:
         model = DecisionTreeClassifier(max_depth=depth, random_state=1)
         scores = cross_val_score(model, X_train, y_train, cv=cv, scoring='f1')
@@ -28,7 +27,7 @@ def train_models(X_train, y_train):
             best_score = mean_score
             best_depth = depth
 
-    # Refit on all training data now
+    # Refit on all training data
     refitted = DecisionTreeClassifier(max_depth=best_depth, random_state=1).fit(X_train, y_train)
     os.makedirs('results/models/', exist_ok=True)
     joblib.dump(refitted, 'results/models/decision_tree.joblib')

@@ -5,7 +5,6 @@ import numpy as np
 def load_fragments(data_dir='data/raw'):
     # One row per fragment
     dataset = pd.read_csv(data_dir + '/dataset.csv')
-    # One row per sample, way more rows
     segments = pd.read_csv(data_dir + '/segments.csv')
 
     # Need time order before making arrays
