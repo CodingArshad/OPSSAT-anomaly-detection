@@ -1,10 +1,11 @@
-# makes all the EDA figures, also has the plotting function the autopsy reuses in evaluate.py
+# Makes all the EDA figures, also has the plotting function the autopsy reuses in evaluate.py
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
 def run_eda(fragments_df, features_df):
-    groups = fragments_df.groupby('channel')  # fragment counts + anomaly rate per channel
+    # Fragment counts + anomaly rate per channel
+    groups = fragments_df.groupby('channel')
     count = groups.size()
     anomaly_rate = groups['label'].mean()
 
@@ -13,17 +14,20 @@ def run_eda(fragments_df, features_df):
     plt.title('Fragment Counts and Anomaly Rates by Channel')
     plt.xlabel('Channel')
     plt.ylabel('Fragment Count')
-    for channel, cnt, rate in zip(count.index, count.values, anomaly_rate.values):  # anomaly rate as text above each bar
+    # Anomaly rate as text above each bar
+    for channel, cnt, rate in zip(count.index, count.values, anomaly_rate.values):
         plt.text(channel, cnt, f'{rate:.2%}', ha='center', va='bottom')
     plt.savefig('figures/channel_counts_anomaly_rates.png')
     plt.close()
 
-    for group_name, channel_df in groups:  # this is the plot that first showed me anomalies look like a glitch cut into a smooth curve
+    # This is the plot that first showed me anomalies look like a glitch cut into a smooth curve
+    for group_name, channel_df in groups:
         anomalous = channel_df[channel_df['label'] == 1]
         nominal = channel_df[channel_df['label'] == 0]
         plot_fragment_comparison(anomalous, nominal, 'Anomalous', 'Nominal', group_name, f'figures/fragments_{group_name}_anomalous_vs_nominal.png')
 
-    feature_columns = [col for col in features_df.columns if col != 'fragment_id' and col != 'label' and col != 'channel']  # the 10 stats from extract_features
+    # The 10 stats from extract_features
+    feature_columns = [col for col in features_df.columns if col != 'fragment_id' and col != 'label' and col != 'channel']
 
     for feature in feature_columns:
         anomalous = features_df[features_df['label'] == 1]
@@ -31,7 +35,8 @@ def run_eda(fragments_df, features_df):
 
         plt.figure(figsize=(10, 5))
 
-        feature_min = np.min(features_df[feature])  # same bins for both histograms, otherwise it's not a fair comparison
+        # Same bins for both histograms, otherwise it's not a fair comparison
+        feature_min = np.min(features_df[feature])
         feature_max = np.max(features_df[feature])
         bins = np.linspace(feature_min, feature_max, 30)
 
@@ -46,15 +51,18 @@ def run_eda(fragments_df, features_df):
         plt.close()
 
 def plot_fragment_comparison(group_a_df, group_b_df, label_a, label_b, channel_name, filename):
-    sample_a = group_a_df.sample(n=min(5, len(group_a_df)), random_state=1)  # only 5 each, more would just be a mess of lines
+    # Only 5 each, more would just be a mess of lines
+    sample_a = group_a_df.sample(n=min(5, len(group_a_df)), random_state=1)
     sample_b = group_b_df.sample(n=min(5, len(group_b_df)), random_state=1)
 
     plt.figure(figsize=(10, 5))
 
-    for i, (idx, row) in enumerate(sample_a.iterrows()):  # elapsed seconds so fragments from different times still line up
+    # Elapsed seconds so fragments from different times still line up
+    for i, (idx, row) in enumerate(sample_a.iterrows()):
         timestamps = pd.to_datetime(row['timestamps'])
         elapsed_seconds = (timestamps - timestamps[0]).total_seconds()
-        plt.plot(elapsed_seconds, row['values'], label=label_a if i == 0 else None, color='red')  # only label the first line, not all 5
+        # Only label the first line, not all 5
+        plt.plot(elapsed_seconds, row['values'], label=label_a if i == 0 else None, color='red')
 
     for i, (idx, row) in enumerate(sample_b.iterrows()):
         timestamps = pd.to_datetime(row['timestamps'])

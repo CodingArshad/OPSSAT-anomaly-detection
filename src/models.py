@@ -1,4 +1,4 @@
-# trains both models and saves them so I don't have to retrain every time
+# Trains both models and saves them so I don't have to retrain every time
 import pandas as pd
 import os
 import joblib
@@ -9,13 +9,15 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 
 def train_models(X_train, y_train):
-    depths = [3, 4, 5, 6]  # keeping this small on purpose, not an open search
+    # Keeping this small on purpose, not an open search
+    depths = [3, 4, 5, 6]
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=1)
 
     best_depth = None
     best_score = -1
 
-    for depth in depths:  # 5-fold CV on training data only, test set stays untouched
+    # 5-fold CV on training data only, test set stays untouched
+    for depth in depths:
         model = DecisionTreeClassifier(max_depth=depth, random_state=1)
         scores = cross_val_score(model, X_train, y_train, cv=cv, scoring='f1')
         mean_score = scores.mean()
@@ -26,14 +28,18 @@ def train_models(X_train, y_train):
             best_score = mean_score
             best_depth = depth
 
-    refitted = DecisionTreeClassifier(max_depth=best_depth, random_state=1).fit(X_train, y_train)  # refit on all training data now
+    # Refit on all training data now
+    refitted = DecisionTreeClassifier(max_depth=best_depth, random_state=1).fit(X_train, y_train)
     os.makedirs('results/models/', exist_ok=True)
     joblib.dump(refitted, 'results/models/decision_tree.joblib')
 
-    X_train_encoded = pd.get_dummies(X_train, columns=['channel'])  # one-hot, tree used ordinal codes but LR shouldn't
+    # One-hot, tree used ordinal codes but LR shouldn't
+    X_train_encoded = pd.get_dummies(X_train, columns=['channel'])
     log_reg = Pipeline([
-        ('scaler', StandardScaler()),  # LR needs same-scale features, tree doesn't care
-        ('classifier', LogisticRegression(class_weight='balanced', max_iter=1000, random_state=1))  # balanced = weigh the minority class more
+        # LR needs same-scale features, tree doesn't care
+        ('scaler', StandardScaler()),
+        # Balanced = weigh the minority class more
+        ('classifier', LogisticRegression(class_weight='balanced', max_iter=1000, random_state=1))
     ])
     log_reg.fit(X_train_encoded, y_train)
     joblib.dump(log_reg, 'results/models/logistic_regression.joblib')

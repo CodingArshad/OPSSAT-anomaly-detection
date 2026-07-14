@@ -1,4 +1,4 @@
-# entry point, runs the whole pipeline: load -> clean -> features -> EDA -> split -> train -> evaluate
+# Entry point, runs the whole pipeline: load -> clean -> features -> EDA -> split -> train -> evaluate
 
 from src.load import load_fragments
 from src.clean import clean_fragments

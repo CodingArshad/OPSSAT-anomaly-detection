@@ -1,4 +1,4 @@
-# runs both models on the test set, makes the confusion matrix / PR curve / autopsy figures
+# Runs both models on the test set, makes the confusion matrix / PR curve / autopsy figures
 from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay, accuracy_score, precision_recall_curve, average_precision_score
 from datetime import datetime
 import matplotlib.pyplot as plt
@@ -9,34 +9,43 @@ from src.eda import plot_fragment_comparison
 
 def evaluate_models(models, X_test, y_test, fragments_df):
     comparison = {}
-    pr_fig = plt.figure(figsize=(8,6))  # both models' PR curves go on this one figure
+    # Both models' PR curves go on this one figure
+    pr_fig = plt.figure(figsize=(8,6))
 
     for model_name, model in models.items():
         if model_name == 'logistic_regression':
-            X_test_model = pd.get_dummies(X_test, columns=['channel'])  # match the one-hot encoding used in training
-            X_test_model = X_test_model.reindex(columns=model.feature_names_in_, fill_value=0)  # test set might be missing a channel value
+            # Match the one-hot encoding used in training
+            X_test_model = pd.get_dummies(X_test, columns=['channel'])
+            # Test set might be missing a channel value
+            X_test_model = X_test_model.reindex(columns=model.feature_names_in_, fill_value=0)
         else:
             X_test_model = X_test
 
         y_pred = model.predict(X_test_model)
 
-        test_fragments = fragments_df.loc[X_test.index]  # need the raw fragment for the autopsy plots below
+        # Need the raw fragment for the autopsy plots below
+        test_fragments = fragments_df.loc[X_test.index]
 
-        missed = test_fragments[(y_test.values == 1) & (y_pred == 0)]   # false negatives
-        caught = test_fragments[(y_test.values == 1) & (y_pred == 1)]   # true positives
+        # False negatives
+        missed = test_fragments[(y_test.values == 1) & (y_pred == 0)]
+        # True positives
+        caught = test_fragments[(y_test.values == 1) & (y_pred == 1)]
         print(f'{model_name}: {len(missed)} missed anomalies, {len(caught)} correctly caught')
 
-        for channel_name, channel_missed in missed.groupby('channel'):  # plot missed vs caught per channel
+        # Plot missed vs caught per channel
+        for channel_name, channel_missed in missed.groupby('channel'):
             channel_caught = caught[caught['channel'] == channel_name]
             if len(channel_caught) == 0:
-                continue   # nothing to compare against for this channel
+                # Nothing to compare against for this channel
+                continue
 
             plot_fragment_comparison(
                 channel_missed, channel_caught, 'Missed', 'Caught', channel_name,
                 f'figures/autopsy_{model_name}_{channel_name}_missed_vs_caught.png'
     )
 
-        report = classification_report(y_test, y_pred)  # anomalous class is what matters, not raw accuracy
+        # Anomalous class is what matters, not raw accuracy
+        report = classification_report(y_test, y_pred)
         print(f'------------------- {model_name} -------------------')
         print(report)
 
@@ -48,17 +57,20 @@ def evaluate_models(models, X_test, y_test, fragments_df):
         plt.close()
 
         accuracy = accuracy_score(y_test, y_pred)
-        baseline_accuracy = y_test.value_counts().max() / len(y_test)  # what you'd get just guessing nominal every time
+        # What you'd get just guessing nominal every time
+        baseline_accuracy = y_test.value_counts().max() / len(y_test)
         print(f'(footnote) {model_name} accuracy: {accuracy:.2%} vs. always-predicted-baseline accuracy: {baseline_accuracy:.2%}')
 
-        if model_name == 'decision_tree':  # only the tree exposes feature_importances_
+        # Only the tree exposes feature_importances_
+        if model_name == 'decision_tree':
             importances = model.feature_importances_
             feature_names = X_test.columns
             importance_series = pd.Series(importances, index=feature_names).sort_values(ascending=False)
 
         report_dict = classification_report(y_test, y_pred, output_dict=True)
 
-        row = {  # one row per run, appended to metrics_summary.csv below
+        # One row per run, appended to metrics_summary.csv below
+        row = {
             'model': model_name,
             'hyperparameters': model.max_depth if model_name == 'decision_tree' else 'class_weight=balanced',
             'timestamp': str(datetime.now()),
@@ -69,7 +81,8 @@ def evaluate_models(models, X_test, y_test, fragments_df):
 
         os.makedirs('results', exist_ok=True)
 
-        log_entry = {  # same info as row but as its own json, more detail than the csv keeps
+        # Same info as row but as its own json, more detail than the csv keeps
+        log_entry = {
             'model': model_name,
             'hyperparameters': model.max_depth if model_name == 'decision_tree' else 'class_weight=balanced',
             'timestamp': str(datetime.now()),
@@ -87,10 +100,12 @@ def evaluate_models(models, X_test, y_test, fragments_df):
         with open(log_filename, 'w') as f:
             json.dump(log_entry, f, indent=2)
 
+        # Append, header only on first write
         metrics_path = 'results/metrics_summary.csv'
-        pd.DataFrame([row]).to_csv(metrics_path, mode='a', header=not os.path.exists(metrics_path), index=False)  # append, header only on first write
+        pd.DataFrame([row]).to_csv(metrics_path, mode='a', header=not os.path.exists(metrics_path), index=False)
 
-        y_proba = model.predict_proba(X_test_model)[:,1]  # PR curve needs probabilities, not just 0/1
+        # PR curve needs probabilities, not just 0/1
+        y_proba = model.predict_proba(X_test_model)[:,1]
         precision_curve, recall_curve, thresholds = precision_recall_curve(y_test, y_proba)
         avg_precision = average_precision_score(y_test, y_proba)
         plt.figure(pr_fig.number)
@@ -106,7 +121,8 @@ def evaluate_models(models, X_test, y_test, fragments_df):
             plt.tight_layout()
             plt.savefig(f'figures/feature_importance_{model_name}.png')
             plt.close()
-            print(importance_series.head(3))   # just want to see the top 3 at a glance
+            # Just want to see the top 3 at a glance
+            print(importance_series.head(3))
 
         comparison[model_name] = {
             'precision' : report_dict['1']['precision'],
@@ -114,7 +130,8 @@ def evaluate_models(models, X_test, y_test, fragments_df):
             'f1' : report_dict['1']['f1-score']
         }
 
-    plt.xlabel('Recall')  # wrapping up the shared PR curve figure now
+    # Wrapping up the shared PR curve figure now
+    plt.xlabel('Recall')
     plt.ylabel('Precision')
     plt.title('Precision-Recall Curves')
     plt.legend()
