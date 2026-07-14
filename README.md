@@ -23,11 +23,13 @@ The precision/recall/F1 comparison table and the autopsy write-up are the actual
 
 ### Why this project
 
-Built specifically as evidence for research outreach. It maps onto three research programs I'm targeting:
+Built specifically as evidence for AI/ML and autonomy research outreach, not as a course assignment. A few things about it matter more than the rest:
 
-- **Di Wu.** The data is real ESA flight telemetry, not a synthetic or toy benchmark. Every result here came from actual on-orbit spacecraft behavior, mess included (the cleaning audit is part of the deliverable, not something swept under the rug).
-- **Akbas.** This is the tightest fit of the three. The whole point of the project is anomaly detection under class imbalance, and the evaluation methodology (anomalous-class precision/recall/F1, confusion-matrix error-mode analysis, accuracy demoted to a footnote, and the autopsy that traces false negatives back to raw telemetry) is what the project is actually demonstrating. Not just that imbalance was measured correctly, but that the failure modes it produces got looked at directly.
-- **Phoulady.** Structurally, flagging anomalous telemetry fragments isn't that different from valve-sticking fault detection: a labeled fault-vs-nominal classification problem on sensor time series, where missing a real fault is the expensive error, and where summary-statistic features (level shifts, stuck or duplicate values, first-difference behavior) carry most of the signal. What the autopsy found, specifically what kinds of faults a summary-statistic feature set structurally cannot see, is exactly the failure-mode reasoning that matters in a fault-detection context. Not just a modeling exercise.
+It runs on real flight data. Actual on-orbit ESA telemetry, not a synthetic or toy benchmark, mess included. The cleaning audit is part of the deliverable, not something swept under the rug.
+
+Evaluation under class imbalance is the actual point, not an afterthought bolted onto a model that happens to work. Anomalous-class precision/recall/F1, confusion-matrix error-mode analysis, accuracy demoted to a footnote, and an autopsy that traces false negatives back to the raw telemetry. The goal was never just measuring imbalance correctly, it was actually looking at the failure modes that imbalance produces.
+
+And structurally, this is a fault-detection problem more than a generic classification exercise. Flagging an anomalous telemetry fragment works the same way as flagging a fault on any other sensor time series: missing a real fault is the expensive error, and summary-statistic features (level shifts, stuck values, first-difference behavior) carry most of the usable signal. What the autopsy found, specifically what kinds of faults that feature family structurally can't see, is the same kind of failure-mode reasoning that matters in fault detection generally, not just in this one dataset.
 
 ## Key Engineering Decisions
 - **Split frozen before any model exists (V3).** The train/test split gets locked before `train_models` is ever called, so no model choice or hyperparameter can influence how the data was divided.
@@ -99,7 +101,7 @@ OPSSAT-AD/
 ```
 
 ## Long-Term Goals
-The project is done at V6 on purpose. It closes at two models plus one misclassification autopsy, deliberately not chasing the ~30-algorithm benchmark from the OPSSAT-AD paper, the same clean-close approach that finished AeroTrajectorySim at its own V6. A few natural extensions, explicitly out of scope here but worth noting for anyone building on this:
+The project is done at V6 on purpose. It closes at two models plus one misclassification autopsy, deliberately not chasing the ~30-algorithm benchmark from the OPSSAT-AD paper. A few natural extensions, explicitly out of scope here but worth noting for anyone building on this:
 - Per-channel models or per-channel evaluation breakdowns (the anomaly rate isn't uniform across channels)
 - Time-series-native or shape/timing-aware features, motivated directly by what the autopsy found summary statistics miss
 - Picking and deploying an actual operational decision threshold for a specific cost ratio. The diagnostic PR curve and average precision added in V5 are in scope here; shipping a real operating threshold is not

@@ -24,7 +24,7 @@ def run_eda(fragments_df, features_df):
         plot_fragment_comparison(anomalous, nominal, 'Anomalous', 'Nominal', group_name, f'figures/fragments_{group_name}_anomalous_vs_nominal.png')
 
 
-    feature_columns = [col for col in features_df.columns if col != 'fragment_id' and col != 'label' and col != 'channel']  # your list of 10 column names to plot
+    feature_columns = [col for col in features_df.columns if col != 'fragment_id' and col != 'label' and col != 'channel']
 
     for feature in feature_columns:
         anomalous = features_df[features_df['label'] == 1]
