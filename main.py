@@ -1,6 +1,4 @@
-# Entry point for the whole project. Runs the full pipeline start to finish:
-# load -> clean -> feature extraction -> EDA -> split -> train both models -> evaluate.
-# Full spec / reasoning for each step is in docs/algorithm.md.
+# entry point, runs the whole pipeline: load -> clean -> features -> EDA -> split -> train -> evaluate
 
 from src.load import load_fragments
 from src.clean import clean_fragments
